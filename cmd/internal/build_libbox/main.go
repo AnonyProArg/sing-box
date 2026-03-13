@@ -20,6 +20,7 @@ var (
 	debugEnabled bool
 	target       string
 	platform     string
+	profile      string
 	// withTailscale bool
 )
 
@@ -27,6 +28,7 @@ func init() {
 	flag.BoolVar(&debugEnabled, "debug", false, "enable debug")
 	flag.StringVar(&target, "target", "android", "target platform")
 	flag.StringVar(&platform, "platform", "", "specify platform")
+	flag.StringVar(&profile, "profile", "default", "build profile")
 	// flag.BoolVar(&withTailscale, "with-tailscale", false, "build tailscale for iOS and tvOS")
 }
 
@@ -110,6 +112,10 @@ func checkJavaVersion() {
 }
 
 func getAndroidBindTarget() string {
+	if profile == "personal-vless" {
+		return "android/arm64"
+	}
+
 	if platform != "" {
 		return platform
 	} else if debugEnabled {
@@ -162,6 +168,10 @@ func buildAndroid() {
 	checkJavaVersion()
 
 	bindTarget := getAndroidBindTarget()
+	if profile == "personal-vless" {
+		buildAndroidPersonalVLESS(bindTarget)
+		return
+	}
 
 	// Build main variant (SDK 23)
 	mainTags := append([]string{}, sharedTags...)
@@ -185,6 +195,24 @@ func buildAndroid() {
 		AndroidAPI: 21,
 		OutputName: "libbox-legacy.aar",
 		Tags:       legacyTags,
+	}, bindTarget)
+}
+
+func buildAndroidPersonalVLESS(bindTarget string) {
+	personalTags := []string{
+		"with_gvisor",
+		"badlinkname",
+		"tfogo_checklinkname0",
+	}
+
+	if debugEnabled {
+		personalTags = append(personalTags, debugTags...)
+	}
+
+	buildAndroidVariant(AndroidBuildConfig{
+		AndroidAPI: 23,
+		OutputName: "libbox-vless-arm64.aar",
+		Tags:       personalTags,
 	}, bindTarget)
 }
 

@@ -1,0 +1,72 @@
+name: Build personal libbox (vless arm64)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to build from this repository (branch, tag, or commit SHA)
+        required: true
+        default: unstable
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout this repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref }}
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: false
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK & NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK r27
+        run: |
+          set -euxo pipefail
+          sdkmanager "ndk;27.2.12479018"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.2.12479018" >> "$GITHUB_ENV"
+
+      - name: Install gomobile (SagerNet fork)
+        run: |
+          set -euxo pipefail
+          go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.12
+          go install github.com/sagernet/gomobile/cmd/gobind@v0.1.12
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Initialize gomobile
+        run: |
+          set -euxo pipefail
+          gomobile init
+
+      - name: Build personal vless libbox
+        run: |
+          set -euxo pipefail
+          go run ./cmd/internal/build_libbox --target android --profile personal-vless
+
+      - name: Show output details
+        run: |
+          set -euxo pipefail
+          find . -name "libbox-vless-arm64.aar" -not -path "*/.git/*"
+          ls -lh libbox-vless-arm64.aar
+          du -h libbox-vless-arm64.aar
+
+      - name: Upload libbox
+        uses: actions/upload-artifact@v4
+        with:
+          name: libbox-vless-arm64-${{ github.event.inputs.ref }}
+          path: libbox-vless-arm64.aar
+          if-no-files-found: error
