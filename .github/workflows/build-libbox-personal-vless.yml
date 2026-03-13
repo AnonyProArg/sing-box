@@ -1,0 +1,66 @@
+name: Build personal libbox (vless arm64)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: sing-box version tag (e.g. v1.13.2)
+        required: true
+        default: v1.13.2
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout sing-box
+        uses: actions/checkout@v4
+        with:
+          repository: SagerNet/sing-box
+          ref: ${{ github.event.inputs.version }}
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: false
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK & NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK r27
+        run: |
+          sdkmanager "ndk;27.2.12479018"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.2.12479018" >> $GITHUB_ENV
+
+      - name: Install gomobile (SagerNet fork)
+        run: |
+          go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.12
+          go install github.com/sagernet/gomobile/cmd/gobind@v0.1.12
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
+      - name: Initialize gomobile
+        run: gomobile init
+
+      - name: Build personal vless libbox
+        run: |
+          go run ./cmd/internal/build_libbox --target android --profile personal-vless
+
+      - name: Find output files
+        run: |
+          find . -name "libbox-vless-arm64.aar" 2>/dev/null | grep -v "/.git/"
+
+      - name: Upload libbox
+        uses: actions/upload-artifact@v4
+        with:
+          name: libbox-vless-arm64-${{ github.event.inputs.version }}
+          path: |
+            **/libbox-vless-arm64.aar
+          if-no-files-found: error
